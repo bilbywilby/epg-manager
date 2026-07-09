@@ -1,0 +1,79 @@
+name: Manual EPG Operations
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Operation to perform'
+        required: true
+        type: choice
+        default: 'rebuild_xmltv'
+        options:
+          - rebuild_xmltv
+          - regenerate_guide
+          - test_lineup
+          - debug_sd_credentials
+      environment:
+        description: 'Target Environment'
+        required: true
+        type: environment
+        default: 'development'
+
+jobs:
+  execute-operation:
+    name: Execute ${{ github.event.inputs.operation }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          
+      - name: Install Dependencies
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Operation
+        env:
+          SD_USERNAME: ${{ secrets.SD_USERNAME }}
+          SD_PASSWORD: ${{ secrets.SD_PASSWORD }}
+        run: |
+          echo "Starting manual operation: ${{ github.event.inputs.operation }}"
+          
+          case "${{ github.event.inputs.operation }}" in
+            rebuild_xmltv)
+              echo "Rebuilding XMLTV..."
+              # ./wrapper.sh rebuild
+              ;;
+            regenerate_guide)
+              echo "Regenerating guide..."
+              # python update_guide.py
+              ;;
+            test_lineup)
+              echo "Testing lineup..."
+              # pytest tests/integration/test_lineup.py
+              ;;
+            debug_sd_credentials)
+              echo "Debugging SD credentials..."
+              # python auth_check.py
+              ;;
+            *)
+              echo "Unknown operation"
+              exit 1
+              ;;
+          esac
+          
+      - name: Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-run-${{ github.event.inputs.operation }}-${{ github.run_id }}
+          path: |
+            *.xml
+            *.log
+          retention-days: 3
